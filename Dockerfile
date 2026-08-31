@@ -12,10 +12,10 @@ WORKDIR /app
 
 # 后端代码 + 依赖
 COPY --from=builder /build/node_modules ./backend/node_modules
-COPY server.js package.json ./backend/
+COPY file/server.js file/package.json ./backend/
 
 # 前端页面
-COPY index.html ./html/
+COPY file/index.html ./html/
 
 # 数据目录（运行时用 volume 挂载持久化）
 RUN mkdir -p ./backend/data
