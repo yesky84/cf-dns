@@ -1,12 +1,12 @@
 # ---------- 阶段1：编译 better-sqlite3 原生模块 ----------
-FROM docker.m.daocloud.io/library/node:20-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /build
 RUN apk add --no-cache python3 make g++
 COPY ./package.json ./
 RUN npm install --omit=dev
 
 # ---------- 阶段2：运行时（不带编译工具，镜像更小更安全） ----------
-FROM docker.m.daocloud.io/library/node:20-alpine
+FROM node:20-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 
