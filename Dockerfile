@@ -2,7 +2,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /build
 RUN apk add --no-cache python3 make g++
-COPY ./package.json ./
+COPY file/package.json ./
 RUN npm install --omit=dev
 
 # ---------- 阶段2：运行时（不带编译工具，镜像更小更安全） ----------
