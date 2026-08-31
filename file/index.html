@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloudflare DNS 管理</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; color: #333; min-height: 100vh; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+h1 { text-align: center; margin-bottom: 30px; color: #1a1a2e; font-size: 28px; }
+
+/* 卡片 */
+.card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+.card h2 { font-size: 18px; margin-bottom: 16px; color: #1a1a2e; display: flex; align-items: center; gap: 8px; }
+.card h2::before { content: ''; display: inline-block; width: 4px; height: 20px; background: #4361ee; border-radius: 2px; }
+
+/* 表单 */
+.form-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 150px; }
+.form-group label { font-size: 12px; color: #666; font-weight: 500; }
+.form-group input, .form-group select { padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; outline: none; }
+.form-group input:focus, .form-group select:focus { border-color: #4361ee; box-shadow: 0 0 0 3px rgba(67,97,238,0.1); }
+
+/* 按钮 */
+.btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: #4361ee; color: #fff; }
+.btn-primary:hover { background: #3a56d4; }
+.btn-success { background: #2ec4b6; color: #fff; }
+.btn-success:hover { background: #28b0a3; }
+.btn-danger { background: #e63946; color: #fff; }
+.btn-danger:hover { background: #cf2f3d; }
+.btn-secondary { background: #6c757d; color: #fff; }
+.btn-secondary:hover { background: #5a6268; }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* 账号列表 */
+.account-list { display: grid; gap: 12px; margin-top: 16px; }
+.account-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: #f8f9fa; border-radius: 8px; border: 1px solid #eee; }
+.account-info { display: flex; flex-direction: column; gap: 4px; }
+.account-name { font-weight: 600; color: #1a1a2e; }
+.account-email { font-size: 12px; color: #888; }
+.account-zone { font-size: 12px; color: #4361ee; background: #eef1ff; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-top: 2px; }
+
+/* DNS 记录表格 */
+.records-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.records-table th { text-align: left; padding: 12px; background: #f8f9fa; font-size: 12px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #eee; }
+.records-table td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+.records-table tr:hover { background: #fafbfc; }
+.records-table input, .records-table select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; outline: none; }
+.records-table input:focus, .records-table select:focus { border-color: #4361ee; }
+.col-account { width: 160px; }
+.col-domain { width: 220px; }
+.col-type { width: 90px; }
+.col-ip { width: 160px; }
+.col-proxy { width: 110px; }
+.col-action { width: 60px; text-align: center; }
+
+/* 日志 */
+.log-container { background: #1a1a2e; border-radius: 8px; padding: 16px; max-height: 300px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.6; }
+.log-entry { color: #a8dadc; word-break: break-all; }
+.log-entry.error { color: #ff6b6b; }
+.log-entry.success { color: #51cf66; }
+.log-time { color: #6c757d; margin-right: 8px; }
+.log-actions { display: flex; gap: 8px; margin-bottom: 12px; }
+
+/* 状态指示 */
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-dot.online { background: #2ec4b6; }
+.status-dot.offline { background: #e63946; }
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .container { padding: 12px; }
+  h1 { font-size: 22px; }
+  .card { padding: 16px; }
+  .form-row { flex-direction: column; }
+  .records-table { display: block; overflow-x: auto; }
+  .col-account { width: 120px; }
+  .col-domain { width: 180px; }
+}
+
+/* Toast 通知 */
+.toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 12px 20px; border-radius: 8px; color: #fff; font-size: 14px; animation: slideIn 0.3s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-width: 360px; }
+.toast.success { background: #2ec4b6; }
+.toast.error { background: #e63946; }
+.toast.info { background: #4361ee; }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeOut { to { opacity: 0; transform: translateY(-10px); } }
+</style>
+</head>
+<body>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="container">
+  <h1>☁️ Cloudflare DNS 管理面板</h1>
+
+  <!-- 账号管理 -->
+  <div class="card">
+    <h2>账号管理</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>账号名称</label>
+        <input type="text" id="accName" placeholder="例如：我的CF账号">
+      </div>
+      <div class="form-group">
+        <label>邮箱</label>
+        <input type="email" id="accEmail" placeholder="Cloudflare 注册邮箱">
+      </div>
+      <div class="form-group">
+        <label>API Token</label>
+        <input type="password" id="accToken" placeholder="Zone DNS Edit 权限的 Token">
+      </div>
+      <div class="form-group">
+        <label>主域名（可选）</label>
+        <input type="text" id="accZone" placeholder="example.com，留空则自动识别">
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="addAccount()">➕ 添加账号</button>
+    <div class="account-list" id="accountList"></div>
+  </div>
+
+  <!-- DNS 记录管理 -->
+  <div class="card">
+    <h2>DNS 记录</h2>
+    <div style="margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+      <button class="btn btn-primary btn-sm" onclick="addRow()">➕ 添加记录</button>
+      <button class="btn btn-success btn-sm" onclick="submitAll()" id="submitBtn">🚀 提交到 Cloudflare</button>
+      <button class="btn btn-secondary btn-sm" onclick="fillLocalIP()">📍 填入本机IP</button>
+    </div>
+    <table class="records-table">
+      <thead>
+        <tr>
+          <th class="col-account">所属账号</th>
+          <th class="col-domain">域名</th>
+          <th class="col-type">类型</th>
+          <th class="col-ip">IP / 值</th>
+          <th class="col-proxy">代理</th>
+          <th class="col-action">操作</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <!-- 运行日志 -->
+  <div class="card">
+    <h2>运行日志</h2>
+    <div class="log-actions">
+      <button class="btn btn-secondary btn-sm" onclick="loadLogs()">🔄 刷新日志</button>
+      <button class="btn btn-danger btn-sm" onclick="clearLogs()">🗑️ 清空日志</button>
+    </div>
+    <div class="log-container" id="logContainer">
+      <div class="log-entry"><span class="log-time">--</span>等待日志...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== 工具函数 ===================== */
+function showToast(msg, type) {
+  var container = document.getElementById('toastContainer');
+  var toast = document.createElement('div');
+  toast.className = 'toast ' + (type || 'info');
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(function() {
+    toast.style.animation = 'fadeOut 0.3s ease forwards';
+    setTimeout(function() { toast.remove(); }, 300);
+  }, 3000);
+}
+
+function addLog(message, level) {
+  var container = document.getElementById('logContainer');
+  var entry = document.createElement('div');
+  entry.className = 'log-entry' + (level === 'error' ? ' error' : level === 'success' ? ' success' : '');
+  var time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  entry.innerHTML = '<span class="log-time">' + time + '</span>' + message.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  container.insertBefore(entry, container.firstChild);
+  /* 页面内最多保留 100 条 */
+  while (container.children.length > 100) container.removeChild(container.lastChild);
+}
+
+/* ===================== 账号管理 ===================== */
+var accounts = [];
+
+async function loadAccounts() {
+  try {
+    var res = await fetch('/api/accounts');
+    accounts = await res.json();
+    renderAccounts();
+    refreshAccountSelects();
+  } catch (e) {
+    console.error('加载账号失败:', e);
+  }
+}
+
+function renderAccounts() {
+  var list = document.getElementById('accountList');
+  if (accounts.length === 0) {
+    list.innerHTML = '<div style="color:#999;font-size:14px;padding:12px;">暂无账号，请先添加</div>';
+    return;
+  }
+  list.innerHTML = accounts.map(function(acc) {
+    var zoneTag = acc.zone_name ? '<span class="account-zone">' + acc.zone_name + '</span>' : '';
+    return '<div class="account-item">' +
+      '<div class="account-info">' +
+        '<span class="account-name">' + acc.name + '</span>' +
+        '<span class="account-email">' + acc.email + '</span>' +
+        zoneTag +
+      '</div>' +
+      '<button class="btn btn-danger btn-sm" onclick="deleteAccount(' + acc.id + ')">删除</button>' +
+    '</div>';
+  }).join('');
+}
+
+async function addAccount() {
+  var name = document.getElementById('accName').value.trim();
+  var email = document.getElementById('accEmail').value.trim();
+  var token = document.getElementById('accToken').value.trim();
+  var zone = document.getElementById('accZone').value.trim();
+  if (!name || !email || !token) {
+    showToast('请填写名称、邮箱和 API Token', 'error');
+    return;
+  }
+  try {
+    var res = await fetch('/api/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, email: email, api_token: token, zone_name: zone })
+    });
+    var data = await res.json();
+    if (data.success) {
+      showToast('账号添加成功', 'success');
+      document.getElementById('accName').value = '';
+      document.getElementById('accEmail').value = '';
+      document.getElementById('accToken').value = '';
+      document.getElementById('accZone').value = '';
+      loadAccounts();
+    } else {
+      showToast(data.error || '添加失败', 'error');
+    }
+  } catch (e) {
+    showToast('请求失败: ' + e.message, 'error');
+  }
+}
+
+async function deleteAccount(id) {
+  if (!confirm('确定删除该账号？关联的记录不会被删除，但需要重新选择账号。')) return;
+  try {
+    await fetch('/api/accounts/' + id, { method: 'DELETE' });
+    showToast('账号已删除', 'success');
+    loadAccounts();
+  } catch (e) {
+    showToast('删除失败: ' + e.message, 'error');
+  }
+}
+
+/* 刷新所有记录行里的账号下拉框 */
+function refreshAccountSelects() {
+  var selects = document.querySelectorAll('#rows .account');
+  selects.forEach(function(sel) {
+    var currentVal = sel.value;
+    sel.innerHTML = '<option value="">-- 选择账号 --</option>' +
+      accounts.map(function(a) {
+        return '<option value="' + a.id + '">' + a.name + (a.zone_name ? ' (' + a.zone_name + ')' : '') + '</option>';
+      }).join('');
+    sel.value = currentVal;
+  });
+}
+
+/* ===================== DNS 记录行管理 ===================== */
+function createRow(record) {
+  record = record || {};
+  var tr = document.createElement('tr');
+  tr.dataset.recordId = record.record_id || '';
+  tr.dataset.dbId = record.id || '';
+  tr.innerHTML =
+    '<td><select class="account" onchange="onRowChange()">' +
+      '<option value="">-- 选择账号 --</option>' +
+      accounts.map(function(a) {
+        var selected = (record.account_id == a.id) ? ' selected' : '';
+        return '<option value="' + a.id + '"' + selected + '>' + a.name + (a.zone_name ? ' (' + a.zone_name + ')' : '') + '</option>';
+      }).join('') +
+    '</select></td>' +
+    '<td><input class="domain" type="text" placeholder="sub.example.com" value="' + (record.domain || '') + '" oninput="onRowChange()"></td>' +
+    '<td><select class="type" onchange="onRowChange()">' +
+      ['A','AAAA','CNAME','MX','TXT','SRV','CAA'].map(function(t) {
+        var selected = (record.type === t) ? ' selected' : '';
+        return '<option value="' + t + '"' + selected + '>' + t + '</option>';
+      }).join('') +
+    '</select></td>' +
+    '<td><input class="ip" type="text" placeholder="IP 或目标值" value="' + (record.content || record.ip || '') + '" oninput="onRowChange()"></td>' +
+    '<td><select class="proxy" onchange="onRowChange()">' +
+      '<option value="preserve"' + (record.proxy === 'preserve' || record.proxy === undefined ? ' selected' : '') + '>保持原状</option>' +
+      '<option value="true"' + (record.proxy === 'true' ? ' selected' : '') + '>开启代理</option>' +
+      '<option value="false"' + (record.proxy === 'false' ? ' selected' : '') + '>关闭代理</option>' +
+    '</select></td>' +
+    '<td style="text-align:center;"><button class="btn btn-danger btn-sm" onclick="removeRow(this)">✕</button></td>';
+  return tr;
+}
+
+function addRow(record) {
+  var tbody = document.getElementById('rows');
+  tbody.appendChild(createRow(record));
+  if (!record) debouncedSaveRows();
+}
+
+function removeRow(btn) {
+  btn.closest('tr').remove();
+  debouncedSaveRows();
+}
+
+/* 任意行内容变化时触发保存 */
+function onRowChange() {
+  debouncedSaveRows();
+}
+
+/* ===================== 保存（核心修复） ===================== */
+var saveTimer = null;
+function debouncedSaveRows() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveRows, 500);
+}
+
+async function saveRows() {
+  var rows = Array.from(document.querySelectorAll('#rows tr'));
+  var records = [];
+  for (var i = 0; i < rows.length; i++) {
+    var tr = rows[i];
+    var accountSel = tr.querySelector('.account');
+    var domainInput = tr.querySelector('.domain');
+    var domain = domainInput ? domainInput.value.trim() : '';
+    var ip = tr.querySelector('.ip') ? tr.querySelector('.ip').value.trim() : '';
+    /* 完全空白的行不发送 */
+    if (!domain && !ip) continue;
+    records.push({
+      id: tr.dataset.dbId || null,
+      accountId: accountSel ? (accountSel.value || null) : null,
+      domain: domain,
+      type: tr.querySelector('.type') ? tr.querySelector('.type').value : 'A',
+      ip: ip,
+      proxy: tr.querySelector('.proxy') ? tr.querySelector('.proxy').value : 'preserve',
+      recordId: tr.dataset.recordId || null
+    });
+  }
+  try {
+    var res = await fetch('/api/records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records: records })
+    });
+    if (!res.ok) {
+      var errData = await res.json().catch(function() { return {}; });
+      addLog('保存记录失败: ' + (errData.error || 'HTTP ' + res.status), 'error');
+      showToast('保存失败: ' + (errData.error || res.status), 'error');
+    }
+  } catch (e) {
+    addLog('保存数据失败: ' + e.message, 'error');
+    showToast('保存失败: ' + e.message, 'error');
+  }
+}
+
+/* ===================== 加载记录 ===================== */
+async function loadRows() {
+  try {
+    var res = await fetch('/api/records');
+    var data = await res.json();
+    var tbody = document.getElementById('rows');
+    tbody.innerHTML = '';
+    if (!Array.isArray(data) || data.length === 0) {
+      addRow(); /* 默认一行空行方便填写 */
+      return;
+    }
+    data.forEach(function(r) { addRow(r); });
+  } catch (e) {
+    console.error('加载记录失败:', e);
+    addRow();
+  }
+}
+
+/* ===================== 提交到 Cloudflare ===================== */
+async function submitAll() {
+  var rows = Array.from(document.querySelectorAll('#rows tr'));
+  var records = [];
+  for (var i = 0; i < rows.length; i++) {
+    var tr = rows[i];
+    var accountSel = tr.querySelector('.account');
+    var domain = tr.querySelector('.domain') ? tr.querySelector('.domain').value.trim() : '';
+    var ip = tr.querySelector('.ip') ? tr.querySelector('.ip').value.trim() : '';
+    if (!domain || !ip || !accountSel || !accountSel.value) continue;
+    records.push({
+      id: tr.dataset.dbId || null,
+      accountId: accountSel.value,
+      domain: domain,
+      type: tr.querySelector('.type') ? tr.querySelector('.type').value : 'A',
+      ip: ip,
+      proxy: tr.querySelector('.proxy') ? tr.querySelector('.proxy').value : 'preserve',
+      recordId: tr.dataset.recordId || null
+    });
+  }
+  if (records.length === 0) {
+    showToast('没有可提交的记录（请确保每行都选择了账号并填写了域名和IP）', 'error');
+    return;
+  }
+  var btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 提交中...';
+  addLog('开始提交 ' + records.length + ' 条记录到 Cloudflare...');
+  try {
+    var res = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records: records })
+    });
+    var data = await res.json();
+    if (data.results) {
+      var successCount = 0;
+      data.results.forEach(function(r) {
+        if (r.success) {
+          addLog('✅ ' + r.domain + ' 更新成功', 'success');
+          successCount++;
+          /* 回写 record_id 到对应行，下次提交可直接更新 */
+          var matchRow = document.querySelector('#rows tr[data-db-id]');
+          /* 简单匹配：按域名找行 */
+          var allRows = document.querySelectorAll('#rows tr');
+          for (var j = 0; j < allRows.length; j++) {
+            var d = allRows[j].querySelector('.domain');
+            if (d && d.value.trim() === r.domain && r.recordId) {
+              allRows[j].dataset.recordId = r.recordId;
+              break;
+            }
+          }
+        } else {
+          addLog('❌ ' + r.domain + ': ' + r.message, 'error');
+        }
+      });
+      showToast(successCount + '/' + records.length + ' 条记录提交成功', successCount === records.length ? 'success' : 'info');
+      /* 提交成功后重新保存一次，把 record_id 持久化 */
+      await saveRows();
+    } else {
+      showToast(data.error || '提交失败', 'error');
+      addLog('提交失败: ' + (data.error || '未知错误'), 'error');
+    }
+  } catch (e) {
+    showToast('提交请求失败: ' + e.message, 'error');
+    addLog('提交请求失败: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🚀 提交到 Cloudflare';
+  }
+}
+
+/* ===================== 填入本机 IP ===================== */
+async function fillLocalIP() {
+  try {
+    var res = await fetch('/api/network-info');
+    var data = await res.json();
+    if (data.ip && data.ip !== '获取失败') {
+      var inputs = document.querySelectorAll('#rows .ip');
+      inputs.forEach(function(input) {
+        if (!input.value.trim()) input.value = data.ip;
+      });
+      showToast('已填入本机 IP: ' + data.ip, 'success');
+      debouncedSaveRows();
+    } else {
+      showToast('无法获取本机 IP', 'error');
+    }
+  } catch (e) {
+    showToast('获取 IP 失败: ' + e.message, 'error');
+  }
+}
+
+/* ===================== 日志 ===================== */
+async function loadLogs() {
+  try {
+    var res = await fetch('/api/log');
+    var logs = await res.json();
+    var container = document.getElementById('logContainer');
+    if (!Array.isArray(logs) || logs.length === 0) {
+      container.innerHTML = '<div class="log-entry"><span class="log-time">--</span>暂无日志</div>';
+      return;
+    }
+    container.innerHTML = logs.map(function(log) {
+      var cls = log.level === 'error' ? ' error' : log.level === 'success' ? ' success' : '';
+      return '<div class="log-entry' + cls + '"><span class="log-time">' + (log.time || '--') + '</span>' +
+        (log.message || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+    }).join('');
+  } catch (e) {
+    console.error('加载日志失败:', e);
+  }
+}
+
+async function clearLogs() {
+  try {
+    await fetch('/api/log/clear', { method: 'POST' });
+    document.getElementById('logContainer').innerHTML = '<div class="log-entry"><span class="log-time">--</span>日志已清空</div>';
+    showToast('日志已清空', 'success');
+  } catch (e) {
+    showToast('清空失败: ' + e.message, 'error');
+  }
+}
+
+/* ===================== 页面关闭前兜底保存 ===================== */
+window.addEventListener('beforeunload', function() {
+  var rows = Array.from(document.querySelectorAll('#rows tr'));
+  var records = [];
+  for (var i = 0; i < rows.length; i++) {
+    var tr = rows[i];
+    var domain = tr.querySelector('.domain') ? tr.querySelector('.domain').value.trim() : '';
+    var ip = tr.querySelector('.ip') ? tr.querySelector('.ip').value.trim() : '';
+    if (!domain && !ip) continue;
+    records.push({
+      id: tr.dataset.dbId || null,
+      accountId: tr.querySelector('.account') ? (tr.querySelector('.account').value || null) : null,
+      domain: domain,
+      type: tr.querySelector('.type') ? tr.querySelector('.type').value : 'A',
+      ip: ip,
+      proxy: tr.querySelector('.proxy') ? tr.querySelector('.proxy').value : 'preserve',
+      recordId: tr.dataset.recordId || null
+    });
+  }
+  navigator.sendBeacon('/api/records', new Blob(
+    [JSON.stringify({ records: records })],
+    { type: 'application/json' }
+  ));
+});
+
+/* ===================== 初始化 ===================== */
+(async function init() {
+  await loadAccounts();
+  await loadRows();
+  loadLogs();
+  /* 每 30 秒自动刷新日志 */
+  setInterval(loadLogs, 30000);
+})();
+</script>
+</body>
+</html>

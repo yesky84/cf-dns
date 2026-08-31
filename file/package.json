@@ -1,0 +1,14 @@
+{
+  "name": "cf-dns-backend",
+  "version": "1.0.0",
+  "description": "Cloudflare DNS Updater Backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "better-sqlite3": "^9.4.3",
+    "axios": "^1.6.7"
+  }
+}
